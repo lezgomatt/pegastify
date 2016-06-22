@@ -158,8 +158,23 @@ function pprint(peg_ast)
   return out
 end
 
+local precedence = {
+  Success = 99;
+  Failure = 99;
+  AnyChar = 99;
+  Literal = 99;
+  CharClass = 99;
+  Variable = 99;
+
+  Repetition = 4;
+  LookAhead = 3;
+  LookBehind = 3;
+  Negation = 3;
+  Sequence = 2;
+  Choice = 1;
+}
+
 function pprint_patt(patt_ast)
-  -- TODO: remove unnecessary parentheses
   local tag = patt_ast[1]
   if tag == "Literal" then
     return "'" .. patt_ast[2] .. "'"
@@ -178,34 +193,49 @@ function pprint_patt(patt_ast)
   elseif tag == "Choice" then
     local left = pprint_patt(patt_ast[2])
     local right = pprint_patt(patt_ast[3])
-    return "(" .. left .. "/" .. right .. ")"
+    local p, p_left, p_right = precedence[tag], precedence[patt_ast[2][1]], precedence[patt_ast[3][1]]
+    if p_left < p then left = "(" .. left .. ")" end
+    if p_right < p then right = "(" .. right .. ")" end
+    return left .. " / " .. right
   elseif tag == "Sequence" then
     local left = pprint_patt(patt_ast[2])
     local right = pprint_patt(patt_ast[3])
-    return "(" .. left .. " " .. right .. ")"
+    local p, p_left, p_right = precedence[tag], precedence[patt_ast[2][1]], precedence[patt_ast[3][1]]
+    if p_left < p then left = "(" .. left .. ")" end
+    if p_right < p then right = "(" .. right .. ")" end
+    return left .. " " .. right
   elseif tag == "Repetition" then
     local patt = pprint_patt(patt_ast[2])
+    local p, p_patt = precedence[tag], precedence[patt_ast[2][1]]
+    if p_patt < p then patt = "(" .. patt .. ")" end
     local type, num = patt_ast[3], patt_ast[4]
     if type == "min" then
-      if num == 0 then return "(" .. patt .. "*)"
-      elseif num == 1 then return "(" .. patt .. "+)"
-      else return "(" .. patt .. "^+" .. num ")"
+      if num == 0 then return patt .. "*"
+      elseif num == 1 then return patt .. "+"
+      else return patt .. "^+" .. num
       end
     elseif type == "max" then
-      if num == 1 then return "(" .. patt .. "?)"
-      else return "(" .. patt .. "^-" .. num ")"
+      if num == 1 then return patt .. "?"
+      else return patt .. "^-" .. num
       end
     else -- == exact
-      return "(" .. patt .. "^" .. num ")"
+      return patt .. "^" .. num
     end
   elseif tag == "Negation" then
     local patt = pprint_patt(patt_ast[2])
-    return "(!" .. patt .. ")"
+    local p, p_patt = precedence[tag], precedence[patt_ast[2][1]]
+    if p_patt < p then patt = "(" .. patt .. ")" end
+    return "!" .. patt
   elseif tag == "LookAhead" then
     local patt = pprint_patt(patt_ast[2])
-    return "(&" .. patt .. ")"
+    local p, p_patt = precedence[tag], precedence[patt_ast[2][1]]
+    if p_patt < p then patt = "(" .. patt .. ")" end
+    return "&" .. patt
   elseif tag == "LookBehind" then
-    return "(B" .. patt .. ")"
+    local patt = pprint_patt(patt_ast[2])
+    local p, p_patt = precedence[tag], precedence[patt_ast[2][1]]
+    if p_patt < p then patt = "(" .. patt .. ")" end
+    return "B" .. patt
   elseif tag == "Variable" then
     return patt_ast[2]
   elseif tag == "Success" then
