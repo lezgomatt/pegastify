@@ -144,6 +144,8 @@ function pegastify_exp(lua_ast)
     end
   elseif tag == "Id" then
     return { "Variable", lua_ast[1] }
+  elseif tag == "Index" and lua_ast[1].tag == "Id" and lua_ast[2].tag == "String" then
+    return { "Variable", "<" .. lua_ast[1][1] .. "." .. lua_ast[2][1] .. ">" }
   else
     -- tag == Dots, False, Function, Table, Invoke, Index
     return { "Failure" }
