@@ -68,16 +68,15 @@ function pegastify_exp(lua_ast)
     elseif op == "div" then
       local patt = pegastify_exp(lua_ast[2])
       return patt
-    elseif op == "pow" and lua_ast[3].tag == "Number" then
+    elseif op == "pow" then
+      local neg_num = lua_ast[3].tag == "Op" and lua_ast[3][1] == "unm" and lua_ast[3][2].tag == "Number"
+      if lua_ast[3].tag ~= "Number" and not neg_num then
+        return { "Failure" }
+      end
       local patt = pegastify_exp(lua_ast[2])
       local type, num
-      num = lua_ast[3][1]
-      if num >= 0 then
-        type = "min"
-      else
-        num = -num
-        type = "max"
-      end
+      num = neg_num and lua_ast[3][2][1] or lua_ast[3][1]
+      type = neg_num and "max" or "min"
       return { "Repetition", patt, type, num }
     elseif op == "unm" then
       local patt = pegastify_exp(lua_ast[2])
@@ -87,7 +86,6 @@ function pegastify_exp(lua_ast)
       return { "LookAhead", patt }
     else
       -- op == concat, idiv, mod, eq, lt, le, and, or, not, bitwise ops
-      -- or op == "pow" but RHS is not a (literal) Number
       return { "Failure" }
     end
   elseif tag == "Paren" then
