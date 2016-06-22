@@ -84,7 +84,7 @@ function pegastify_exp(lua_ast)
       return { "Negation", patt }
     elseif op == "len" then
       local patt = pegastify_exp(lua_ast[2])
-      return { "LookAhead", patt }      
+      return { "LookAhead", patt }
     else
       -- op == concat, idiv, mod, eq, lt, le, and, or, not, bitwise ops
       -- or op == "pow" but RHS is not a (literal) Number
@@ -121,7 +121,7 @@ function pegastify_exp(lua_ast)
         local start, fin = arg:sub(1,1), arg:sub(2,2)
         ranges[#ranges+1] = { "Range", start, fin }
       end
-      return { "CharClass", ranges }      
+      return { "CharClass", ranges }
     elseif func == "B" then
       local patt = pegastify_exp(lua_ast[2])
       return { "LookBehind", patt }
@@ -152,31 +152,73 @@ function pegastify_exp(lua_ast)
   end
 end
 
--- taken from: http://lua-users.org/wiki/TableSerialization
-function table_print (tt, indent, done)
-  done = done or {}
-  indent = indent or 0
-  if type(tt) == "table" then
-    for key, value in pairs (tt) do
-      io.write(string.rep (" ", indent)) -- indent it
-      if type (value) == "table" and not done [value] then
-        done [value] = true
-        io.write(string.format("[%s] => table\n", tostring (key)));
-        io.write(string.rep (" ", indent+4)) -- indent it
-        io.write("(\n");
-        table_print (value, indent + 7, done)
-        io.write(string.rep (" ", indent+4)) -- indent it
-        io.write(")\n");
-      else
-        io.write(string.format("[%s] => %s\n",
-            tostring (key), tostring(value)))
+function pprint(peg_ast)
+  local out = ""
+  for _, rule in ipairs(peg_ast) do
+    out = out .. rule[2] .. " <- " .. pprint_patt(rule[3]) .. "\n"
+  end
+  return out
+end
+
+function pprint_patt(patt_ast)
+  -- TODO: remove unnecessary parentheses
+  local tag = patt_ast[1]
+  if tag == "Literal" then
+    return "'" .. patt_ast[2] .. "'"
+  elseif tag == "AnyChar" then
+    return "."
+  elseif tag == "CharClass" then
+    local chars = ""
+    for _, item in ipairs(patt_ast[2]) do
+      if item[1] == "Character" then
+        chars = chars .. item[2]
+      elseif item[1] == "Range" then
+        chars = chars .. item[2] .. "-" .. item[3]
       end
     end
+    return "[" .. chars .. "]"
+  elseif tag == "Choice" then
+    local left = pprint_patt(patt_ast[2])
+    local right = pprint_patt(patt_ast[3])
+    return "(" .. left .. "/" .. right .. ")"
+  elseif tag == "Sequence" then
+    local left = pprint_patt(patt_ast[2])
+    local right = pprint_patt(patt_ast[3])
+    return "(" .. left .. " " .. right .. ")"
+  elseif tag == "Repetition" then
+    local patt = pprint_patt(patt_ast[2])
+    local type, num = patt_ast[3], patt_ast[4]
+    if type == "min" then
+      if num == 0 then return "(" .. patt .. "*)"
+      elseif num == 1 then return "(" .. patt .. "+)"
+      else return "(" .. patt .. "^+" .. num ")"
+      end
+    elseif type == "max" then
+      if num == 1 then return "(" .. patt .. "?)"
+      else return "(" .. patt .. "^-" .. num ")"
+      end
+    else -- == exact
+      return "(" .. patt .. "^" .. num ")"
+    end
+  elseif tag == "Negation" then
+    local patt = pprint_patt(patt_ast[2])
+    return "(!" .. patt .. ")"
+  elseif tag == "LookAhead" then
+    local patt = pprint_patt(patt_ast[2])
+    return "(&" .. patt .. ")"
+  elseif tag == "LookBehind" then
+    return "(B" .. patt .. ")"
+  elseif tag == "Variable" then
+    return patt_ast[2]
+  elseif tag == "Success" then
+    return "''"
+  elseif tag == "Failure" then
+    return "FAIL"
   else
-    io.write(tt .. "\n")
+    return "<Unknown Tag: " .. tag ">"
   end
 end
 
 pp.dump(ast, 2)
 print("====")
-table_print(pegastify(ast))
+print(pprint(pegastify(ast)))
