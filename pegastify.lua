@@ -30,7 +30,14 @@ function pegastify_stmt(lua_ast, grammar)
     end
     local var_name = lua_ast[1][1][1]
     local patt = pegastify_exp(lua_ast[2][1])
-    grammar[#grammar+1] = { "Rule", var_name, patt }
+    if patt[1] == "G" then
+      grammar[#grammar+1] = { "Rule", var_name, patt[2] }
+      for i, rule in ipairs(patt[3]) do
+        grammar[#grammar+1] = rule
+      end
+    else
+      grammar[#grammar+1] = { "Rule", var_name, patt }
+    end
   elseif tag == "Localrec" then
     -- TODO: recognize the functions on patterns (based on the return)
   end
@@ -102,9 +109,18 @@ function pegastify_exp(lua_ast)
     end
 
     if func == "P" then
-      -- TODO: handle tables (grammars)
-      local patt = pegastify_exp(lua_ast[2])
-      return patt
+      if lua_ast[2].tag == "Table" then -- grammar
+        local t = lua_ast[2]
+        local rules = {}
+        for i = 2, #t do
+          rules[#rules + 1] = { "Rule", t[i][1][1], pegastify_exp(t[i][2]) }
+        end
+        local init = t[1].tag == "String" and { "Variable", t[1][1] } or pegastify_exp(t[1])
+        return { "G", init, rules }
+      else
+        local patt = pegastify_exp(lua_ast[2])
+        return patt
+      end
     elseif func == "S" then
       local chars = lua_ast[2][1] -- assumed to be string literal
       local char_set = {}
@@ -123,6 +139,8 @@ function pegastify_exp(lua_ast)
     elseif func == "B" then
       local patt = pegastify_exp(lua_ast[2])
       return { "LookBehind", patt }
+    elseif func == "V" then
+      return { "Variable", lua_ast[2][1] }
     elseif
       func == "C" or func == "Cf" or func == "Cg" or
       func == "Cs" or func == "Ct" or func == "Cmt"
