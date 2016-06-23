@@ -195,19 +195,25 @@ local precedence = {
   Choice = 1;
 }
 
+function escape(char)
+  if char == "\n" then return "\\n"
+  elseif char == "\t" then return "\\t"
+  else return char end
+end
+
 function pprint_patt(patt_ast)
   local tag = patt_ast[1]
   if tag == "Literal" then
-    return "'" .. patt_ast[2] .. "'"
+    return "'" .. escape(patt_ast[2]) .. "'"
   elseif tag == "AnyChar" then
     return "."
   elseif tag == "CharClass" then
     local chars = ""
     for _, item in ipairs(patt_ast[2]) do
       if item[1] == "Character" then
-        chars = chars .. item[2]
+        chars = chars .. escape(item[2])
       elseif item[1] == "Range" then
-        chars = chars .. item[2] .. "-" .. item[3]
+        chars = chars .. escape(item[2]) .. "-" .. escape(item[3])
       end
     end
     return "[" .. chars .. "]"
