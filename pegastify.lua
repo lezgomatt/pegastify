@@ -185,6 +185,7 @@ local precedence = {
   Literal = 99;
   CharClass = 99;
   Variable = 99;
+  Application = 99;
 
   Repetition = 4;
   LookAhead = 3;
@@ -262,11 +263,15 @@ function pprint_patt(patt_ast)
     return "''"
   elseif tag == "Failure" then
     return "FAIL"
+  elseif tag == "Application" then
+    local args = {}
+    for _, patt in ipairs(patt_ast[3]) do
+      args[#args+1] = pprint_patt(patt)
+    end
+    return "@" .. patt_ast[2] .. "(" .. table.concat(args, ", ") .. ")"
   else
-    return "<Unknown Tag: " .. tag ">"
+    return "<Unknown Tag: " .. tag .. ">"
   end
 end
 
-pp.dump(ast, 2)
-print("====")
 print(pprint(pegastify(ast)))
